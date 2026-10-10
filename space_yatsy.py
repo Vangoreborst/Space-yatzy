@@ -36,6 +36,26 @@ def load():
     return d
 
 
+MANIFEST = {
+    "name": "Avaruus-Yatzy", "short_name": "Yatzy",
+    "start_url": "/", "scope": "/", "display": "standalone",
+    "background_color": "#070717", "theme_color": "#070717",
+    "icons": [
+        {"src": "/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any"},
+        {"src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any"},
+    ],
+}
+ICON = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" rx="96" fill="#1a0b3d"/>
+<rect x="116" y="116" width="280" height="280" rx="50" fill="#7c3aed"/>
+<g fill="#fff"><circle cx="186" cy="186" r="26"/><circle cx="326" cy="186" r="26"/><circle cx="256" cy="256" r="26"/><circle cx="186" cy="326" r="26"/><circle cx="326" cy="326" r="26"/></g></svg>'''
+SW = r'''const C='yatzy-v1';
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['/','/icon.svg'])));self.skipWaiting()});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!=C).map(x=>caches.delete(x)))));self.clients.claim()});
+self.addEventListener('fetch',e=>{if(e.request.method!='GET'||e.request.url.includes('/api/'))return;
+e.respondWith(fetch(e.request).then(r=>{const cp=r.clone();caches.open(C).then(c=>c.put(e.request,cp));return r}).catch(()=>caches.match(e.request)))});'''
+
+
 class H(BaseHTTPRequestHandler):
     def _send(self, body, ct="application/json"):
         self.send_response(200)
@@ -46,9 +66,16 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path.startswith("/api/scores"):
+        p = self.path.split("?")[0]
+        if p.startswith("/api/scores"):
             with LOCK:
                 self._send(json.dumps(load()).encode())
+        elif p == "/manifest.json":
+            self._send(json.dumps(MANIFEST).encode(), "application/manifest+json")
+        elif p == "/sw.js":
+            self._send(SW.encode(), "text/javascript")
+        elif p == "/icon.svg":
+            self._send(ICON.encode(), "image/svg+xml")
         else:
             self._send(HTML.encode("utf-8"), "text/html; charset=utf-8")
 
@@ -85,7 +112,11 @@ def lan_ip():
 
 HTML = r"""<!DOCTYPE html><html lang="fi"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Avaruus-Yatzy</title><style>
+<title>Avaruus-Yatzy</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#070717">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg"><style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;min-height:100vh;color:#e8ecff;font-family:system-ui,sans-serif;
 background:radial-gradient(circle at 15% 10%,#5b1fa8aa,transparent 45%),radial-gradient(circle at 90% 80%,#0a8fb8aa,transparent 45%),radial-gradient(circle at 50% 100%,#c2186088,transparent 40%),#070717}
@@ -135,6 +166,7 @@ td:first-child{text-align:left}tr.op{cursor:pointer}tr.op:active,tr.cur{backgrou
 <div id="hs" hidden><div class="scr"><h1>🏆 Huippupisteet</h1><div class="seg" id="hst"><button data-v="classic" class="on">Perinteinen</button><button data-v="rev">Käänteinen</button><button data-v="duel">Kaksintaistelu</button><button data-v="free">Vapaa kaksintaistelu</button></div>
 <div class="card" id="hsl"></div><button style="width:100%" id="hsx">Sulje</button></div></div>
 <script>
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),R=()=>1+Math.floor(Math.random()*6);
 const CATS=['Ykköset','Kakkoset','Kolmoset','Neloset','Vitoset','Kuutoset','Pari','Kaksi paria','Kolme samaa','Neljä samaa','Pieni suora','Iso suora','Täyskäsi','Sattuma','Yatzy'];
 const AV=[2,4,6,8,10,12,8,10,12,14,7,9,15,22,3];
